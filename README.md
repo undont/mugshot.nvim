@@ -4,6 +4,8 @@
 
 **A git blame card for the line under your cursor, with the commit author's avatar rendered inline in the terminal.**
 
+[![CI](https://img.shields.io/github/actions/workflow/status/undont/mugshot.nvim/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=white&label=CI)](https://github.com/undont/mugshot.nvim/actions)
+[![Release](https://img.shields.io/github/v/release/undont/mugshot.nvim?style=flat&logo=github&logoColor=white&label=Release&color=6366F1)](https://github.com/undont/mugshot.nvim/releases/latest)
 [![Licence](https://img.shields.io/github/license/undont/mugshot.nvim?style=flat&label=licence&color=6366F1)](LICENCE)
 [![Lua](https://img.shields.io/badge/Lua-5.1-2C2D72?style=flat&logo=lua&logoColor=white)](https://www.lua.org)
 [![Neovim](https://img.shields.io/badge/Neovim-0.10+-57A143?style=flat&logo=neovim&logoColor=white)](https://neovim.io)
@@ -18,7 +20,7 @@
 
 `git blame` tells you who and when; it doesn't put a face to the line. mugshot opens a small float for the line under the cursor showing the author, the relative and absolute time, the short sha, and the commit summary, with the author's avatar drawn in the corner when your terminal can draw images.
 
-The avatar is resolved from the commit's GitHub author, falling back to Gravatar and then a generated silhouette, so there's a face for every line. Everything off the blame (the GitHub lookup, the avatar download, the resize) runs async, so the card opens immediately and the picture fills in. When the terminal can't draw images, the same card renders as plain text.
+The avatar is resolved from the commit's GitHub author, falling back to Gravatar and then a generated silhouette. Everything off the blame (the GitHub lookup, the download, the resize) runs async, so the card opens immediately. Without image support the same card renders as plain text.
 
 ---
 
@@ -63,7 +65,7 @@ Avatars are optional; without the pieces below the card still renders as text.
 }
 ```
 
-`setup()` is only needed to change defaults and bind the trigger keymap. The `:Mugshot` command is registered on startup either way.
+`setup()` is only needed to change defaults and bind the trigger keymap. The `:Mugshot` command is registered on startup either way. Pin a release with `version = "v0.0.1"`.
 
 ### vim.pack (Neovim 0.12+)
 
@@ -71,6 +73,8 @@ Avatars are optional; without the pieces below the card still renders as text.
 vim.pack.add({ "https://github.com/undont/mugshot.nvim" })
 require("mugshot").setup()
 ```
+
+Pin a release with `{ src = "https://github.com/undont/mugshot.nvim", version = "v0.0.1" }`.
 
 ---
 
@@ -143,7 +147,7 @@ require("image").setup({
 
 ## How it works
 
-The card is built from one `git blame --porcelain` of the current line; every step after that is async, so opening never blocks on the network.
+The card is built from one `git blame --porcelain` of the current line; everything after that is async.
 
 ```
 git blame -L <line> --porcelain
@@ -159,7 +163,7 @@ git blame -L <line> --porcelain
    render float ──▶ image.nvim draws the avatar, or text-only fallback
 ```
 
-The GitHub lookup is the only rate-limited call (5k/hr authenticated) and is skipped for unpushed commits. Avatars are cached on disk by GitHub login so later commits from the same contributor reuse the face, and the placeholder is drawn once with magick rather than shipped as a binary asset.
+The GitHub lookup is the only rate-limited call (5k/hr authenticated), and is skipped for unpushed commits.
 
 ---
 
