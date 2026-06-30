@@ -1,6 +1,8 @@
 -- author -> avatar url, github first then gravatar then placeholder. async.
 -- ported from .spikes/spike2-avatar-resolve.sh
 
+local util = require("mugshot.util")
+
 local M = {}
 
 ---@class mugshot.Avatar
@@ -8,21 +10,7 @@ local M = {}
 ---@field login string?  github login when resolved via github
 ---@field source "github"|"gravatar"|"placeholder"
 
--- owner/repo from an origin url; handles ssh and https, trailing .git,
--- and dots in the repo name (e.g. mugshot.nvim)
----@param remote string
----@return string?
-local function slug_from_remote(remote)
-  if not remote or remote == "" then return nil end
-  local path = remote:match("github%.com[:/](.+)$")
-  if not path then return nil end
-  path = path:gsub("%.git$", "")
-  local owner, repo = path:match("^([^/]+)/([^/]+)")
-  if not owner or not repo then return nil end
-  return owner .. "/" .. repo
-end
-
-M._slug_from_remote = slug_from_remote
+M._slug_from_remote = util.slug_from_remote
 
 ---@param email string
 ---@param size integer
@@ -61,15 +49,11 @@ function M.resolve(opts, cb)
   end
 
   local unpushed = opts.sha and opts.sha:match("^0+$") ~= nil
-  vim.system(
-    { "git", "remote", "get-url", "origin" },
-    { cwd = opts.cwd, text = true },
-    function(r)
-      local slug = slug_from_remote(vim.trim(r.stdout or ""))
-      if not slug or unpushed then
-        return try_gravatar()
-      end
-      vim.system(
+  util.repo_slug(opts.cwd, function(slug)
+    if not slug or unpushed then
+      return try_gravatar()
+    end
+    vim.system(
         { "gh", "api", "repos/" .. slug .. "/commits/" .. opts.sha,
           "--jq", "{login: .author.login, avatar: .author.avatar_url}" },
         { cwd = opts.cwd, text = true },
