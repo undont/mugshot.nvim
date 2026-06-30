@@ -141,32 +141,41 @@ function M.open(info, cwd)
     vim.api.nvim_create_autocmd("WinLeave", { buffer = buf, once = true, callback = close })
 
     if cap.ok and not info.uncommitted then
-        resolve.resolve(
-            { sha = info.sha, email = info.author_mail, cwd = cwd, size = opts.avatar.size },
-            function(av)
-                cache.fetch(av, function(path)
-                    if not path or not vim.api.nvim_win_is_valid(win) then
-                        return
-                    end
-                    img = require("image").from_file(path, {
-                        window = win,
-                        buffer = buf,
-                        x = 1,
-                        y = 1,
-                        width = opts.avatar.width,
-                        height = opts.avatar.height,
-                    })
+        local function render(path)
+            if not path or not vim.api.nvim_win_is_valid(win) then
+                return
+            end
+            img = require("image").from_file(path, {
+                window = win,
+                buffer = buf,
+                x = 1,
+                y = 1,
+                width = opts.avatar.width,
+                height = opts.avatar.height,
+            })
+            pcall(function()
+                img:render()
+            end)
+            vim.api.nvim_create_autocmd({ "WinScrolled", "VimResized" }, {
+                buffer = buf,
+                callback = function()
                     pcall(function()
                         img:render()
                     end)
-                    vim.api.nvim_create_autocmd({ "WinScrolled", "VimResized" }, {
-                        buffer = buf,
-                        callback = function()
-                            pcall(function()
-                                img:render()
-                            end)
-                        end,
-                    })
+                end,
+            })
+        end
+
+        resolve.resolve(
+            { sha = info.sha, email = info.author_mail, cwd = cwd, size = opts.avatar.size },
+            function(av)
+                -- a resolved face, else the generated placeholder silhouette
+                cache.fetch(av, function(path)
+                    if path then
+                        render(path)
+                    else
+                        cache.placeholder(render)
+                    end
                 end)
             end
         )

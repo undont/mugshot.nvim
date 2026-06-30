@@ -89,3 +89,46 @@ describe("cache.fetch", function()
         assert.is_nil(res)
     end)
 end)
+
+describe("cache.placeholder", function()
+    local dir
+
+    before_each(function()
+        dir = vim.fn.tempname()
+        config.setup({ cache = { dir = dir } })
+    end)
+
+    it("generates a placeholder png via magick at the configured size", function()
+        local res, done
+        with(vim, "system", fake_system({ { match = "magick", result = { code = 0 } } }), function()
+            cache.placeholder(function(p)
+                res, done = p, true
+            end)
+            vim.wait(500, function()
+                return done
+            end)
+        end)
+        assert.are.equal(dir .. "/placeholder-128.png", res)
+    end)
+
+    it("returns the cached placeholder without re-running magick", function()
+        vim.fn.mkdir(dir, "p")
+        local path = dir .. "/placeholder-128.png"
+        vim.fn.writefile({ "x" }, path)
+        local called, res = false, nil
+        with(vim, "system", function()
+            called = true
+            return {
+                wait = function()
+                    return {}
+                end,
+            }
+        end, function()
+            cache.placeholder(function(p)
+                res = p
+            end)
+        end)
+        assert.are.equal(path, res)
+        assert.is_false(called)
+    end)
+end)

@@ -56,4 +56,43 @@ function M.fetch(avatar, cb)
     end)
 end
 
+-- generate (once) a neutral avatar silhouette for commits with no resolvable
+-- face (unpushed local commits, no gravatar). drawn with magick so there's no
+-- binary asset to ship; cached at the configured avatar size
+---@param cb fun(path: string?)
+function M.placeholder(cb)
+    local opts = config.options
+    local dir = opts.cache.dir
+    vim.fn.mkdir(dir, "p")
+
+    local s = opts.avatar.size
+    local path = ("%s/placeholder-%d.png"):format(dir, s)
+    if vim.fn.filereadable(path) == 1 then
+        return cb(path)
+    end
+
+    local cx = math.floor(s / 2)
+    local head_r = math.floor(s * 0.17)
+    local head_y = math.floor(s * 0.40)
+    local body_ry = math.floor(s * 0.26)
+    local body_rx = math.floor(body_ry * 1.6)
+    vim.system({
+        "magick",
+        "-size",
+        ("%dx%d"):format(s, s),
+        "xc:#3b4252",
+        "-fill",
+        "#6c7086",
+        "-draw",
+        ("circle %d,%d %d,%d"):format(cx, head_y, cx, head_y - head_r),
+        "-draw",
+        ("ellipse %d,%d %d,%d 0,360"):format(cx, s, body_rx, body_ry),
+        path,
+    }, { text = true }, function(res)
+        vim.schedule(function()
+            cb(res.code == 0 and path or nil)
+        end)
+    end)
+end
+
 return M
