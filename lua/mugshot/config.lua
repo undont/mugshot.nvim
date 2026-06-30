@@ -26,25 +26,25 @@ local M = {}
 ---@field cache mugshot.CacheConfig
 ---@field gravatar boolean  fall back to gravatar when github has no linked user
 local defaults = {
-  keymap = "gb",
-  actions = {
-    open_commit = "o",
-    copy_sha = "y",
-    open_pr = "p",
-    dismiss = { "q", "<Esc>" },
-  },
-  hint_row = true,
-  avatar = {
-    width = 8,
-    height = 4,
-    size = 128,
-    shape = "square",
-  },
-  cache = {
-    dir = vim.fn.stdpath("cache") .. "/mugshot",
-    login_ttl = 30 * 24 * 60 * 60,
-  },
-  gravatar = true,
+    keymap = "gb",
+    actions = {
+        open_commit = "o",
+        copy_sha = "y",
+        open_pr = "p",
+        dismiss = { "q", "<Esc>" },
+    },
+    hint_row = true,
+    avatar = {
+        width = 8,
+        height = 4,
+        size = 128,
+        shape = "square",
+    },
+    cache = {
+        dir = vim.fn.stdpath("cache") .. "/mugshot",
+        login_ttl = 30 * 24 * 60 * 60,
+    },
+    gravatar = true,
 }
 
 M.defaults = defaults
@@ -53,8 +53,14 @@ M.options = vim.deepcopy(defaults)
 ---@param opts? mugshot.Config
 ---@return mugshot.Config
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
-  return M.options
+    opts = opts or {}
+    M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts)
+    -- deep-extend index-merges list values; replace the dismiss list wholesale so
+    -- `dismiss = { "x" }` means exactly { "x" }, not { "x", "<Esc>" }
+    if opts.actions and opts.actions.dismiss ~= nil then
+        M.options.actions.dismiss = vim.deepcopy(opts.actions.dismiss)
+    end
+    return M.options
 end
 
 return M

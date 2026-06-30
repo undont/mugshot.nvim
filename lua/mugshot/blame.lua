@@ -18,7 +18,7 @@ local M = {}
 ---@param mail string
 ---@return string
 local function strip_brackets(mail)
-  return (mail:gsub("^<", ""):gsub(">$", ""))
+    return (mail:gsub("^<", ""):gsub(">$", ""))
 end
 
 -- parse the porcelain block for a single line; the header line is
@@ -26,34 +26,36 @@ end
 ---@param out string
 ---@return mugshot.BlameInfo?
 local function parse(out)
-  local sha = out:match("^(%x+)")
-  if not sha then return nil end
-
-  local info = { sha = sha }
-  for line in vim.gsplit(out, "\n", { plain = true }) do
-    local key, val = line:match("^(%S+) (.*)$")
-    if key == "author" then
-      info.author = val
-    elseif key == "author-mail" then
-      info.author_mail = strip_brackets(val)
-    elseif key == "author-time" then
-      info.author_time = tonumber(val)
-    elseif key == "committer" then
-      info.committer = val
-    elseif key == "committer-mail" then
-      info.committer_mail = strip_brackets(val)
-    elseif key == "committer-time" then
-      info.committer_time = tonumber(val)
-    elseif key == "summary" then
-      info.summary = val
-    elseif key == "filename" then
-      info.filename = val
+    local sha = out:match("^(%x+)")
+    if not sha then
+        return nil
     end
-  end
 
-  info.abbrev = sha:sub(1, 7)
-  info.uncommitted = sha:match("^0+$") ~= nil
-  return info
+    local info = { sha = sha }
+    for line in vim.gsplit(out, "\n", { plain = true }) do
+        local key, val = line:match("^(%S+) (.*)$")
+        if key == "author" then
+            info.author = val
+        elseif key == "author-mail" then
+            info.author_mail = strip_brackets(val)
+        elseif key == "author-time" then
+            info.author_time = tonumber(val)
+        elseif key == "committer" then
+            info.committer = val
+        elseif key == "committer-mail" then
+            info.committer_mail = strip_brackets(val)
+        elseif key == "committer-time" then
+            info.committer_time = tonumber(val)
+        elseif key == "summary" then
+            info.summary = val
+        elseif key == "filename" then
+            info.filename = val
+        end
+    end
+
+    info.abbrev = sha:sub(1, 7)
+    info.uncommitted = sha:match("^0+$") ~= nil
+    return info
 end
 
 M._parse = parse
@@ -64,18 +66,18 @@ M._parse = parse
 ---@param lnum integer  1-based line
 ---@param cb fun(info: mugshot.BlameInfo?, err: string?)
 function M.blame_line(file, lnum, cb)
-  vim.system(
-    { "git", "blame", "-L", lnum .. "," .. lnum, "--porcelain", "--", file },
-    { cwd = vim.fs.dirname(file), text = true },
-    function(res)
-      vim.schedule(function()
-        if res.code ~= 0 then
-          return cb(nil, vim.trim(res.stderr or ("git blame exited " .. res.code)))
+    vim.system(
+        { "git", "blame", "-L", lnum .. "," .. lnum, "--porcelain", "--", file },
+        { cwd = vim.fs.dirname(file), text = true },
+        function(res)
+            vim.schedule(function()
+                if res.code ~= 0 then
+                    return cb(nil, vim.trim(res.stderr or ("git blame exited " .. res.code)))
+                end
+                cb(parse(res.stdout))
+            end)
         end
-        cb(parse(res.stdout))
-      end)
-    end
-  )
+    )
 end
 
 return M

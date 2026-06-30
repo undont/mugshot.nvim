@@ -1,0 +1,42 @@
+local config = require("mugshot.config")
+
+describe("config.setup", function()
+    it("returns the defaults when given nothing", function()
+        local o = config.setup()
+        assert.are.equal("gb", o.keymap)
+        assert.are.equal(8, o.avatar.width)
+        assert.are.equal(128, o.avatar.size)
+        assert.are.equal("o", o.actions.open_commit)
+        assert.is_truthy(o.cache.dir:find("mugshot", 1, true))
+    end)
+
+    it("overrides a top-level key without disturbing the rest", function()
+        local o = config.setup({ keymap = "<leader>gb" })
+        assert.are.equal("<leader>gb", o.keymap)
+        assert.are.equal(8, o.avatar.width)
+    end)
+
+    it("merges a nested override and keeps sibling defaults", function()
+        local o = config.setup({ avatar = { size = 64 } })
+        assert.are.equal(64, o.avatar.size)
+        assert.are.equal(8, o.avatar.width)
+        assert.are.equal("square", o.avatar.shape)
+    end)
+
+    it("replaces the dismiss list wholesale (no index merge)", function()
+        local o = config.setup({ actions = { dismiss = { "x" } } })
+        assert.are.same({ "x" }, o.actions.dismiss)
+        assert.are.equal("o", o.actions.open_commit) -- sibling action kept
+    end)
+
+    it("can disable the keymap with false", function()
+        local o = config.setup({ keymap = false })
+        assert.is_false(o.keymap)
+    end)
+
+    it("does not mutate the defaults table across calls", function()
+        config.setup({ avatar = { size = 999 } })
+        local o = config.setup()
+        assert.are.equal(128, o.avatar.size)
+    end)
+end)
