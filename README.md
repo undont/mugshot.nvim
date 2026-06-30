@@ -65,7 +65,7 @@ Avatars are optional; without the pieces below the card still renders as text.
 }
 ```
 
-`setup()` is only needed to change defaults and bind the trigger keymap. The `:Mugshot` command is registered on startup either way. Pin a release with `version = "v0.1.0"`.
+`setup()` is only needed to change defaults and bind the trigger keymap. The `:Mugshot` command is registered on startup either way. Pin a release with `version = "v0.0.1"`.
 
 ### vim.pack (Neovim 0.12+)
 
@@ -74,7 +74,7 @@ vim.pack.add({ "https://github.com/undont/mugshot.nvim" })
 require("mugshot").setup()
 ```
 
-Pin a release with `{ src = "https://github.com/undont/mugshot.nvim", version = "v0.1.0" }`.
+Pin a release with `{ src = "https://github.com/undont/mugshot.nvim", version = "v0.0.1" }`.
 
 ---
 
