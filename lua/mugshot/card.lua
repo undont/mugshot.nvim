@@ -183,12 +183,20 @@ function M.open(info, cwd)
     })
 
     local img
-    local function close()
+    local group = vim.api.nvim_create_augroup("mugshot_card_" .. buf, { clear = true })
+    -- delete the rendered image from the terminal and drop our autocmds. covers
+    -- every teardown route so a kitty-protocol image can't bleed onto the screen
+    local function clear_img()
         if img then
             pcall(function()
                 img:clear()
             end)
+            img = nil
         end
+        pcall(vim.api.nvim_del_augroup_by_id, group)
+    end
+    local function close()
+        clear_img()
         if vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_win_close(win, true)
         end
@@ -214,7 +222,20 @@ function M.open(info, cwd)
     end)
 
     -- dismiss when focus leaves the card
-    vim.api.nvim_create_autocmd("WinLeave", { buffer = buf, once = true, callback = close })
+    vim.api.nvim_create_autocmd("WinLeave", {
+        group = group,
+        buffer = buf,
+        once = true,
+        callback = close,
+    })
+    -- backstops: clear the terminal image if the card is torn down another way
+    -- (window closed elsewhere, or nvim quit) rather than via the dismiss keys
+    vim.api.nvim_create_autocmd("BufWipeout", { group = group, buffer = buf, callback = clear_img })
+    vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = clear_img })
+    -- a tmux window/session switch never reaches nvim as WinLeave, but with tmux
+    -- `focus-events on` it arrives as FocusLost; dismiss so the image can't bleed
+    -- across panes. see image.nvim #233 / kitty #2457 for the underlying limit
+    vim.api.nvim_create_autocmd("FocusLost", { group = group, callback = close })
 
     if cap.ok and not info.uncommitted then
         local function render(path)
@@ -233,6 +254,7 @@ function M.open(info, cwd)
                 img:render()
             end)
             vim.api.nvim_create_autocmd({ "WinScrolled", "VimResized" }, {
+                group = group,
                 buffer = buf,
                 callback = function()
                     pcall(function()
