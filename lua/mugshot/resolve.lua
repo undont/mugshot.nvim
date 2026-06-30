@@ -36,18 +36,22 @@ function M.resolve(opts, cb)
         if not opts.email or opts.email == "" then
             return finish({ source = "placeholder" })
         end
-        local url = gravatar_url(opts.email, size)
-        vim.system(
-            { "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", url },
-            { text = true },
-            function(res)
-                if vim.trim(res.stdout or "") == "200" then
-                    finish({ url = url, source = "gravatar" })
-                else
-                    finish({ source = "placeholder" })
+        -- gravatar_url() calls vim.fn.sha256(), a vimscript builtin that
+        -- can't run in the fast-event context vim.system on_exit fires in
+        vim.schedule(function()
+            local url = gravatar_url(opts.email, size)
+            vim.system(
+                { "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", url },
+                { text = true },
+                function(res)
+                    if vim.trim(res.stdout or "") == "200" then
+                        finish({ url = url, source = "gravatar" })
+                    else
+                        finish({ source = "placeholder" })
+                    end
                 end
-            end
-        )
+            )
+        end)
     end
 
     local unpushed = opts.sha and opts.sha:match("^0+$") ~= nil

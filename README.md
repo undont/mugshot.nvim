@@ -14,11 +14,15 @@
 
 [Features](#features) · [Requirements](#requirements) · [Installation](#installation) · [Usage](#usage) · [Configuration](#configuration) · [Development](#development)
 
+![mugshot.nvim demo](.demo/demo.png)
+
 </div>
 
 ---
 
-`git blame` tells you who and when; it doesn't put a face to the line. mugshot opens a small float for the line under the cursor showing the author, the relative and absolute time, the short sha, and the commit summary, with the author's avatar drawn in the corner when your terminal can draw images.
+Made this for fun more than anything else, but it's a nice way to see git blame inside the editor, inspired by GitLens in Visual Studio Code.
+
+mugshot opens a small float for the line under the cursor showing the author, the relative and absolute time, the short sha, and the commit summary, with the author's avatar drawn in the corner when your terminal can draw images.
 
 The avatar is resolved from the commit's GitHub author, falling back to Gravatar and then a generated silhouette. Everything off the blame (the GitHub lookup, the download, the resize) runs async, so the card opens immediately. Without image support the same card renders as plain text.
 
