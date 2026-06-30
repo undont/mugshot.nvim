@@ -42,21 +42,80 @@ local function rel_time(epoch)
     return ago(d / (86400 * 365), "year")
 end
 
+local ns = vim.api.nvim_create_namespace("mugshot")
+
+-- default, user-overridable highlight groups for the card rows
+local hl_done = false
+local function ensure_hl()
+    if hl_done then
+        return
+    end
+    hl_done = true
+    local function def(name, link)
+        vim.api.nvim_set_hl(0, name, { link = link, default = true })
+    end
+    def("MugshotAuthor", "Title")
+    def("MugshotHash", "Identifier")
+    def("MugshotTime", "Comment")
+    def("MugshotSummary", "Normal")
+    def("MugshotIcon", "Special")
+    def("MugshotHint", "Comment")
+end
+
+---@class mugshot.CardHighlight
+---@field line integer  0-based row
+---@field col_start integer  byte column
+---@field col_end integer  byte column
+---@field group string
+
 ---@param info mugshot.BlameInfo
 ---@param cap mugshot.Capability
 ---@param opts mugshot.Config
----@return string[]
-local function build_lines(info, cap, opts)
+---@return { lines: string[], highlights: mugshot.CardHighlight[] }
+local function build_card(info, cap, opts)
     local pad = cap.ok and string.rep(" ", opts.avatar.width + 2) or ""
     local t = info.author_time or os.time()
     local when = ("%s (%s)"):format(rel_time(t), os.date("%Y-%m-%d %H:%M", t))
+    local icons = opts.icons or {}
 
-    local lines = {
-        "",
-        pad .. info.author .. "  " .. when,
-        pad .. info.abbrev,
-        pad .. (info.summary or ""),
-    }
+    local lines, hls = {}, {}
+    -- append a row: an optional leading icon then { text, group, gap } segments,
+    -- recording a byte-range highlight for the icon and each grouped segment
+    local function emit(lead, icon, segments)
+        local line = lead
+        local col = #line
+        local ranges = {}
+        if icon and icon ~= "" then
+            line = line .. icon .. " "
+            ranges[#ranges + 1] = { col, col + #icon, "MugshotIcon" }
+            col = #line
+        end
+        for _, seg in ipairs(segments) do
+            if seg.gap then
+                line = line .. seg.gap
+                col = #line
+            end
+            local start = col
+            line = line .. seg.text
+            col = #line
+            if seg.group and seg.text ~= "" then
+                ranges[#ranges + 1] = { start, col, seg.group }
+            end
+        end
+        local row = #lines
+        lines[#lines + 1] = line
+        for _, r in ipairs(ranges) do
+            hls[#hls + 1] = { line = row, col_start = r[1], col_end = r[2], group = r[3] }
+        end
+    end
+
+    emit(pad, icons.author, {
+        { text = info.author, group = "MugshotAuthor" },
+        { text = when, group = "MugshotTime", gap = "  " },
+    })
+    emit(pad, icons.hash, { { text = info.abbrev, group = "MugshotHash" } })
+    emit(pad, icons.summary, { { text = info.summary or "", group = "MugshotSummary" } })
+
     -- keep the card tall enough for the avatar block
     while cap.ok and #lines < opts.avatar.height + 1 do
         lines[#lines + 1] = ""
@@ -65,14 +124,23 @@ local function build_lines(info, cap, opts)
         local a = opts.actions
         local dismiss = type(a.dismiss) == "table" and a.dismiss[1] or a.dismiss
         lines[#lines + 1] = ""
-        lines[#lines + 1] = ("%s open · %s copy · %s pr · %s close"):format(
+        local hint = ("%s open · %s copy · %s pr · %s close"):format(
             a.open_commit,
             a.copy_sha,
             a.open_pr,
             dismiss
         )
+        emit("", nil, { { text = hint, group = "MugshotHint" } })
     end
-    return lines
+    return { lines = lines, highlights = hls }
+end
+
+---@param info mugshot.BlameInfo
+---@param cap mugshot.Capability
+---@param opts mugshot.Config
+---@return string[]
+local function build_lines(info, cap, opts)
+    return build_card(info, cap, opts).lines
 end
 
 -- open the card for a parsed blame line; resolves and draws the avatar async
@@ -81,7 +149,9 @@ end
 function M.open(info, cwd)
     local opts = config.options
     local cap = capability.detect()
-    local lines = build_lines(info, cap, opts)
+    ensure_hl()
+    local built = build_card(info, cap, opts)
+    local lines = built.lines
 
     local width = 40
     for _, l in ipairs(lines) do
@@ -90,6 +160,12 @@ function M.open(info, cwd)
 
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    for _, h in ipairs(built.highlights) do
+        pcall(vim.api.nvim_buf_set_extmark, buf, ns, h.line, h.col_start, {
+            end_col = h.col_end,
+            hl_group = h.group,
+        })
+    end
     vim.bo[buf].modifiable = false
     vim.bo[buf].bufhidden = "wipe"
     vim.bo[buf].filetype = "mugshot"
@@ -107,12 +183,20 @@ function M.open(info, cwd)
     })
 
     local img
-    local function close()
+    local group = vim.api.nvim_create_augroup("mugshot_card_" .. buf, { clear = true })
+    -- delete the rendered image from the terminal and drop our autocmds. covers
+    -- every teardown route so a kitty-protocol image can't bleed onto the screen
+    local function clear_img()
         if img then
             pcall(function()
                 img:clear()
             end)
+            img = nil
         end
+        pcall(vim.api.nvim_del_augroup_by_id, group)
+    end
+    local function close()
+        clear_img()
         if vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_win_close(win, true)
         end
@@ -138,7 +222,20 @@ function M.open(info, cwd)
     end)
 
     -- dismiss when focus leaves the card
-    vim.api.nvim_create_autocmd("WinLeave", { buffer = buf, once = true, callback = close })
+    vim.api.nvim_create_autocmd("WinLeave", {
+        group = group,
+        buffer = buf,
+        once = true,
+        callback = close,
+    })
+    -- backstops: clear the terminal image if the card is torn down another way
+    -- (window closed elsewhere, or nvim quit) rather than via the dismiss keys
+    vim.api.nvim_create_autocmd("BufWipeout", { group = group, buffer = buf, callback = clear_img })
+    vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = clear_img })
+    -- a tmux window/session switch never reaches nvim as WinLeave, but with tmux
+    -- `focus-events on` it arrives as FocusLost; dismiss so the image can't bleed
+    -- across panes. see image.nvim #233 / kitty #2457 for the underlying limit
+    vim.api.nvim_create_autocmd("FocusLost", { group = group, callback = close })
 
     if cap.ok and not info.uncommitted then
         local function render(path)
@@ -157,6 +254,7 @@ function M.open(info, cwd)
                 img:render()
             end)
             vim.api.nvim_create_autocmd({ "WinScrolled", "VimResized" }, {
+                group = group,
                 buffer = buf,
                 callback = function()
                     pcall(function()
@@ -185,6 +283,7 @@ function M.open(info, cwd)
 end
 
 M._build_lines = build_lines
+M._build_card = build_card
 M._rel_time = rel_time
 
 return M

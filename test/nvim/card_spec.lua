@@ -29,15 +29,37 @@ describe("card._build_lines", function()
 
     it("has no left pad in text mode", function()
         local lines = card._build_lines(info, { ok = false }, config.options)
-        assert.is_truthy(lines[2]:find("^Sean"))
-        assert.are.equal("deadbee", lines[3])
-        assert.are.equal("did things", lines[4])
+        assert.is_nil(lines[1]:find("^ "))
+        assert.is_truthy(lines[1]:find("Sean", 1, true))
+        assert.is_truthy(lines[2]:find("deadbee", 1, true))
+        assert.is_truthy(lines[3]:find("did things", 1, true))
     end)
 
     it("left-pads the rows and stays tall enough in avatar mode", function()
         local lines = card._build_lines(info, { ok = true }, config.options)
-        assert.is_truthy(lines[2]:find("^%s%s+Sean"))
+        assert.is_truthy(lines[1]:find("^%s%s+"))
+        assert.is_truthy(lines[1]:find("Sean", 1, true))
         assert.is_true(#lines >= config.options.avatar.height + 1)
+    end)
+
+    it("prefixes the rows with icons by default and drops them when icons=false", function()
+        local with = card._build_lines(info, { ok = false }, config.options)
+        assert.is_truthy(with[2]:find(config.options.icons.hash, 1, true))
+        config.setup({ icons = false })
+        local without = card._build_lines(info, { ok = false }, config.options)
+        assert.are.equal("deadbee", without[2])
+    end)
+
+    it("emits a byte-range highlight for the hash row", function()
+        local built = card._build_card(info, { ok = false }, config.options)
+        local found = false
+        for _, h in ipairs(built.highlights) do
+            if h.group == "MugshotHash" then
+                found = true
+                assert.is_true(h.col_end > h.col_start)
+            end
+        end
+        assert.is_true(found)
     end)
 
     it("ends with a hint row built from the configured keys", function()
