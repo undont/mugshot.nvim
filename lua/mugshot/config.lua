@@ -18,10 +18,16 @@ local M = {}
 ---@field open_pr string
 ---@field dismiss string|string[]
 
+---@class mugshot.IconsConfig
+---@field author string  glyph before the author row
+---@field hash string  glyph before the short-sha row
+---@field summary string  glyph before the subject row
+
 ---@class mugshot.Config
 ---@field keymap string|false  trigger that opens the card for the current line
 ---@field actions mugshot.ActionsConfig  buffer-local keys inside the focused card
 ---@field hint_row boolean  render the dim hint row at the foot of the card
+---@field icons mugshot.IconsConfig|false  per-row glyphs; set false for plain text
 ---@field avatar mugshot.AvatarConfig
 ---@field cache mugshot.CacheConfig
 ---@field gravatar boolean  fall back to gravatar when github has no linked user
@@ -34,6 +40,13 @@ local defaults = {
         dismiss = { "q", "<Esc>" },
     },
     hint_row = true,
+    -- nerd-font glyphs (fa user / code-fork / comment); decimal escapes so the
+    -- source stays ascii. set icons=false to drop them entirely
+    icons = {
+        author = "\239\128\135",
+        hash = "\239\132\166",
+        summary = "\239\129\181",
+    },
     avatar = {
         width = 8,
         height = 4,
